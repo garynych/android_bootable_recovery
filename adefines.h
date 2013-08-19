@@ -1,12 +1,6 @@
 #ifndef ADEFINES_H
 #define ADEFINES_H
 
-Uncoment only one of these 4 before compiling rcovery!
-#define XPERIA_GO
-//#define XPERIA_SOLA
-//#define XPERIA_P
-//#define XPERIA_U
-
 #if !(defined XPERIA_GO || defined XPERIA_SOLA)
 #define HAVE_NOT_EXTERNAL_SDCARD
 #endif

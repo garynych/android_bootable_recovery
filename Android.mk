@@ -38,6 +38,16 @@ RECOVERY_NAME := CWM-based Recovery
 endif
 endif
 
+ifeq ($(TARGET_PRODUCT,cm_lotus)
+  LOCAL_CFLAGS += -DXPERIA_GO
+endif
+ifeq ($(TARGET_PRODUCT,cm_pepper)
+  LOCAL_CFLAGS += -DXPERIA_SOLA
+endif
+ifeq ($(TARGET_PRODUCT,cm_kumquat)
+  LOCAL_CFLAGS += -DXPERIA_U
+endif
+
 RECOVERY_VERSION := $(RECOVERY_NAME) v6.0.3.6
 
 LOCAL_CFLAGS += -DRECOVERY_VERSION="$(RECOVERY_VERSION)"
