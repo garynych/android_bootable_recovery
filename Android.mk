@@ -80,11 +80,11 @@ LOCAL_STATIC_LIBRARIES += libext4_utils_static libz libsparse_static
 
 LOCAL_MODULE_TAGS := eng
 
-ifeq ($(BOARD_CUSTOM_RECOVERY_KEYMAPPING),)
+#ifeq ($(BOARD_CUSTOM_RECOVERY_KEYMAPPING),)
   LOCAL_SRC_FILES += default_recovery_keys.c
-else
-  LOCAL_SRC_FILES += $(BOARD_CUSTOM_RECOVERY_KEYMAPPING)
-endif
+#else
+#  LOCAL_SRC_FILES += $(BOARD_CUSTOM_RECOVERY_KEYMAPPING)
+#endif
 
 LOCAL_STATIC_LIBRARIES += libmake_ext4fs libext4_utils_static libz libsparse_static
 LOCAL_STATIC_LIBRARIES += libminzip libunz libmincrypt
