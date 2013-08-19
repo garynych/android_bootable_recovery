@@ -31,6 +31,9 @@
 #define BITS_PER_LONG (sizeof(unsigned long) * 8)
 #define BITS_TO_LONGS(x) (((x) + BITS_PER_LONG - 1) / BITS_PER_LONG)
 
+#define VIBRATOR_TIMEOUT_FILE "/sys/class/timed_output/vibrator/enable"
+#define VIBRATOR_TIME_MS	50
+
 #define test_bit(bit, array) \
     ((array)[(bit)/BITS_PER_LONG] & (1 << ((bit) % BITS_PER_LONG)))
 
@@ -45,6 +48,26 @@ static struct fd_info ev_fdinfo[MAX_DEVICES + MAX_MISC_FDS];
 static unsigned ev_count = 0;
 static unsigned ev_dev_count = 0;
 static unsigned ev_misc_count = 0;
+
+int vibrate(int timeout_ms)
+{
+    char str[20];
+    int fd;
+    int ret;
+
+    fd = open(VIBRATOR_TIMEOUT_FILE, O_WRONLY);
+    if (fd < 0)
+        return -1;
+
+    ret = snprintf(str, sizeof(str), "%d", timeout_ms);
+    ret = write(fd, str, ret);
+    close(fd);
+
+    if (ret < 0)
+       return -1;
+
+    return 0;
+}
 
 int ev_init(ev_callback input_cb, void *data)
 {
@@ -69,7 +92,7 @@ int ev_init(ev_callback input_cb, void *data)
             }
 
             /* TODO: add ability to specify event masks. For now, just assume
-             * that only EV_KEY and EV_REL event types are ever needed. */
+             * that only EV_KEY, EV_REL and EV_ABS event types are ever needed. */
             if (!test_bit(EV_KEY, ev_bits) && !test_bit(EV_REL, ev_bits) && !test_bit(EV_ABS, ev_bits)) {
                 close(fd);
                 continue;

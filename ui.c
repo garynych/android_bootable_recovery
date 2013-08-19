@@ -36,14 +36,8 @@
 
 extern int __system(const char *command);
 
-#if defined(BOARD_HAS_NO_SELECT_BUTTON) || defined(BOARD_TOUCH_RECOVERY)
-static int gShowBackButton = 1;
-#else
-static int gShowBackButton = 0;
-#endif
-
 #define MAX_COLS 96
-#define MAX_ROWS 32
+#define MAX_ROWS 20
 
 #define MENU_MAX_COLS 64
 #define MENU_MAX_ROWS 250
@@ -233,10 +227,14 @@ static void draw_text_line(int row, const char* t) {
   }
 }
 
-//#define MENU_TEXT_COLOR 255, 160, 49, 255
-#define MENU_TEXT_COLOR 0, 191, 255, 255
-#define NORMAL_TEXT_COLOR 200, 200, 200, 255
-#define HEADER_TEXT_COLOR NORMAL_TEXT_COLOR
+#define BLACK_COLOR 0, 0, 0, 255
+#define WHITE_COLOR 255, 255, 255, 255
+#define RED_COLOR 255, 0, 0, 255
+
+#define MENU_TEXT_COLOR 0, 50, 255, 255
+#define NORMAL_TEXT_COLOR 50, 50, 50, 255
+
+#define HEADER_TEXT_COLOR BLACK_COLOR
 
 // Redraw everything on the screen.  Does not flip pages.
 // Should only be called with gUpdateMutex locked.
@@ -247,17 +245,12 @@ static void draw_screen_locked(void)
     draw_progress_locked();
 
     if (show_text) {
-        // don't "disable" the background anymore with this...
-        // gr_color(0, 0, 0, 160);
-        // gr_fill(0, 0, gr_fb_width(), gr_fb_height());
-
         int total_rows = gr_fb_height() / CHAR_HEIGHT;
         int i = 0;
         int j = 0;
         int row = 0;            // current row that we are drawing on
         if (show_menu) {
-#ifndef BOARD_TOUCH_RECOVERY
-            gr_color(MENU_TEXT_COLOR);
+            gr_color(WHITE_COLOR);
             gr_fill(0, (menu_top + menu_sel - menu_show_start) * CHAR_HEIGHT,
                     gr_fb_width(), (menu_top + menu_sel - menu_show_start + 1)*CHAR_HEIGHT+1);
 
@@ -272,15 +265,16 @@ static void draw_screen_locked(void)
             else
                 j = menu_items - menu_show_start;
 
-            gr_color(MENU_TEXT_COLOR);
+            gr_color(WHITE_COLOR);
             for (i = menu_show_start + menu_top; i < (menu_show_start + menu_top + j); ++i) {
                 if (i == menu_top + menu_sel) {
-                    gr_color(255, 255, 255, 255);
+                    gr_color(RED_COLOR);
                     draw_text_line(i - menu_show_start , menu[i]);
-                    gr_color(MENU_TEXT_COLOR);
+                    gr_color(WHITE_COLOR);
                 } else {
                     gr_color(MENU_TEXT_COLOR);
                     draw_text_line(i - menu_show_start, menu[i]);
+                    gr_color(WHITE_COLOR);
                 }
                 row++;
                 if (row >= max_menu_rows)
@@ -289,23 +283,11 @@ static void draw_screen_locked(void)
 
             gr_fill(0, row*CHAR_HEIGHT+CHAR_HEIGHT/2-1,
                     gr_fb_width(), row*CHAR_HEIGHT+CHAR_HEIGHT/2+1);
-#else
-            row = draw_touch_menu(menu, menu_items, menu_top, menu_sel, menu_show_start);
-#endif
         }
 
         gr_color(NORMAL_TEXT_COLOR);
-        int cur_row = text_row;
-        int available_rows = total_rows - row - 1;
-        int start_row = row + 1;
-        if (available_rows < MAX_ROWS)
-            cur_row = (cur_row + (MAX_ROWS - available_rows)) % MAX_ROWS;
-        else
-            start_row = total_rows - MAX_ROWS;
-
-        int r;
-        for (r = 0; r < (available_rows < MAX_ROWS ? available_rows : MAX_ROWS); r++) {
-            draw_text_line(start_row + r, text[(cur_row + r) % MAX_ROWS]);
+        for (; row < text_rows; ++row) {
+            draw_text_line(row+1, text[(row+text_top) % text_rows]);
         }
     }
 }
@@ -383,13 +365,21 @@ static void *progress_thread(void *cookie)
     return NULL;
 }
 
-static int rel_sum = 0;
+int rel_sum = 0;
+int touch_x = 0;
+int touch_y = 0;
+int rcnt = 0;
+int touch_released = 1;
+extern int vibrate(int timeout_ms);
 
 static int input_callback(int fd, short revents, void *data)
 {
     struct input_event ev;
     int ret;
     int fake_key = 0;
+    int touch_val_x;
+    int touch_val_y;
+    int button_sz;
 
     ret = ev_get_input(fd, revents, &ev);
     if (ret)
@@ -401,6 +391,19 @@ static int input_callback(int fd, short revents, void *data)
 #endif
 
     if (ev.type == EV_SYN) {
+        if (ev.code == SYN_MT_REPORT) {
+            rcnt += 1;
+            if (rcnt >= 2) {
+                rcnt = 0;
+                touch_released = 1;
+            } else {
+                if (!touch_x && !touch_y) {
+                    touch_released = 1;
+                }
+                touch_x = 0;
+                touch_y = 0;
+            }
+        }
         return 0;
     } else if (ev.type == EV_REL) {
         if (ev.code == REL_Y) {
@@ -425,6 +428,73 @@ static int input_callback(int fd, short revents, void *data)
         }
     } else {
         rel_sum = 0;
+    }
+
+    if (ev.type == EV_ABS) {
+            rcnt = 0;
+            if (ev.code == ABS_MT_POSITION_X)
+                touch_x = ev.value;
+            if (ev.code == ABS_MT_POSITION_Y)
+                touch_y = ev.value;
+            if (ev.code == ABS_MT_DISTANCE)
+                ev.code = 0;
+            if (touch_x && touch_y && touch_released) {
+                button_sz = (gr_fb_width() / 7); //4 buttons + 3 spaces with same size like button
+                //ui_print("%d %d %d\n", touch_x, touch_y, button_sz);
+                if (touch_x >= (gr_fb_width()-(7*button_sz)) && touch_x <= (gr_fb_width()-(6*button_sz)))
+                    touch_val_x = 1;
+                else if (touch_x >= (gr_fb_width()-(5*button_sz)) && touch_x <= (gr_fb_width()-(4*button_sz)))
+                    touch_val_x = 2;
+                else if (touch_x >= (gr_fb_width()-(3*button_sz)) && touch_x <= (gr_fb_width()-(2*button_sz)))
+                    touch_val_x = 3;
+                else if (touch_x >= (gr_fb_width()-button_sz) && touch_x <= gr_fb_width())
+                    touch_val_x = 4;
+                else
+                    touch_val_x = 0;
+
+		  if (touch_y >= (gr_fb_height()-50) && touch_y <= gr_fb_height())
+                    touch_val_y = 1;
+                else
+                    touch_val_y = 0;
+
+                switch (touch_val_x) {
+                    case 1:
+                        if (touch_val_y) {
+                            ev.type = EV_KEY;
+                            ev.code = KEY_UP;
+                            ev.value = 1;
+                            vibrate(10);
+                        }
+                        break;
+                    case 2:
+                        if (touch_val_y) {
+                            ev.type = EV_KEY;
+                            ev.code = KEY_DOWN;
+                            ev.value = 1;
+                            vibrate(10);
+                        }
+                        break;
+                    case 3:
+                        if (touch_val_y) {
+                            ev.type = EV_KEY;
+                            ev.code = KEY_POWER;
+                            ev.value = 1;
+                            vibrate(10);
+                        }
+                        break;
+                    case 4:
+                        if (touch_val_y) {
+                            ev.type = EV_KEY;
+                            ev.code = KEY_BACKSPACE;
+                            ev.value = 1;
+                            vibrate(10);
+                        }
+                        break;
+                    default:
+                        break;
+                }
+                touch_released = 0;
+            }
     }
 
     if (ev.type != EV_KEY || ev.code > KEY_MAX)
@@ -487,16 +557,11 @@ void ui_init(void)
     ui_has_initialized = 1;
     gr_init();
     ev_init(input_callback, NULL);
-#ifdef BOARD_TOUCH_RECOVERY
-    touch_init();
-#endif
 
     text_col = text_row = 0;
     text_rows = gr_fb_height() / CHAR_HEIGHT;
     max_menu_rows = text_rows - MIN_LOG_ROWS;
-#ifdef BOARD_TOUCH_RECOVERY
-    max_menu_rows = get_max_menu_rows(max_menu_rows);
-#endif
+
     if (max_menu_rows > MENU_MAX_ROWS)
         max_menu_rows = MENU_MAX_ROWS;
     if (text_rows > MAX_ROWS) text_rows = MAX_ROWS;
@@ -576,6 +641,19 @@ void ui_init(void)
     pthread_t t;
     pthread_create(&t, NULL, progress_thread, NULL);
     pthread_create(&t, NULL, input_thread, NULL);
+
+    __system("/sbin/cat /sys/devices/platform/ab8500-i2c.0/ab8500-usb.0/boot_time_device > /sys/devices/platform/ab8500-i2c.0/ab8500-usb.0/boot_time_device");
+    __system("/sbin/killall -9 adbd");
+    __system("/sbin/echo 0 >/sys/class/android_usb/android0/enable");
+    __system("/sbin/echo 0FCE >/sys/class/android_usb/android0/idVendor");
+    __system("/sbin/echo 617E >/sys/class/android_usb/android0/idProduct");
+    __system("/sbin/echo 'mass_storage,adb' >/sys/class/android_usb/android0/functions");
+    __system("/sbin/echo 1 >/sys/class/android_usb/android0/enable");
+    __system("/sbin/setprop sys.usb.state mass_storage,adb");
+    __system("/sbin/setprop sys.usb.config mass_storage,adb");
+    __system("/sbin/setprop persist.sys.usb.config mass_storage,adb");
+    __system("/sbin/start adbd");
+    //__system("/sbin/setprop ro.build.product lotus");
 }
 
 char *ui_copy_image(int icon, int *width, int *height, int *bpp) {
@@ -740,7 +818,7 @@ void ui_printlogtail(int nb_lines) {
     ui_log_stdout=1;
 }
 
-#define MENU_ITEM_HEADER " - "
+#define MENU_ITEM_HEADER " "
 #define MENU_ITEM_HEADER_LENGTH strlen(MENU_ITEM_HEADER)
 
 int ui_start_menu(char** headers, char** items, int initial_selection) {
@@ -760,20 +838,12 @@ int ui_start_menu(char** headers, char** items, int initial_selection) {
             menu[i][MENU_MAX_COLS-1] = '\0';
         }
 
-        if (gShowBackButton && !ui_root_menu) {
-            strcpy(menu[i], " - +++++Go Back+++++");
-            ++i;
-        }
-
         menu_items = i - menu_top;
         show_menu = 1;
         menu_sel = menu_show_start = initial_selection;
         update_screen_locked();
     }
     pthread_mutex_unlock(&gUpdateMutex);
-    if (gShowBackButton && !ui_root_menu) {
-        return menu_items - 1;
-    }
     return menu_items;
 }
 
@@ -1015,18 +1085,6 @@ int ui_should_log_stdout()
 
 void ui_set_show_text(int value) {
     show_text = value;
-}
-
-void ui_set_showing_back_button(int showBackButton) {
-    gShowBackButton = showBackButton;
-}
-
-int ui_get_showing_back_button() {
-    return gShowBackButton;
-}
-
-int ui_is_showing_back_button() {
-    return gShowBackButton && !ui_root_menu;
 }
 
 int ui_get_selected_item() {

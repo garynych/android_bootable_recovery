@@ -573,37 +573,125 @@ int control_usb_storage(Volume **volumes, bool enable) {
     return res;  // -1 failure, 0 success
 }
 
+#define BOARD_UMS_LUNFILE_INT	"/sys/devices/virtual/android_usb/android0/f_mass_storage/lun/file"
+
 void show_mount_usb_storage_menu()
 {
-    // Build a list of Volume objects; some or all may not be valid
-    Volume* volumes[MAX_NUM_USB_VOLUMES] = {
-        volume_for_path("/sdcard"),
-        volume_for_path("/emmc"),
-        volume_for_path("/external_sd")
-    };
+    __system("setprop persist.sys.usb.config mass_storage,adb");
 
-    // Enable USB storage
-    if (control_usb_storage(volumes, 1))
-        return;
-
-    static char* headers[] = {  "USB Mass Storage device",
-                                "Leaving this menu unmounts",
-                                "your SD card from your PC.",
+    static char* sdheaders[] = {  "SD card mounts",
                                 "",
                                 NULL
     };
 
-    static char* list[] = { "Unmount", NULL };
+    static char* sdlist[] = { "Mount SD",
+#ifndef HAVE_NOT_EXTERNAL_SDCARD
+                            "Mount ext-SD",
+#endif
+                            NULL
+    };
 
     for (;;)
     {
-        int chosen_item = get_menu_selection(headers, list, 0, 0);
-        if (chosen_item == GO_BACK || chosen_item == 0)
+        int chosen_item = get_menu_selection(sdheaders, sdlist, 0, 0);
+        if (chosen_item == GO_BACK)
             break;
-    }
+        switch (chosen_item)
+        {
+            case 0:
+            {
+                int fd;
+                Volume *vol = volume_for_path("/sdcard");
+                if ((fd = open(BOARD_UMS_LUNFILE, O_WRONLY)) < 0) {
+                    LOGE("Unable to open ums lunfile (%s)", strerror(errno));
+                    return -1;
+                }
 
-    // Disable USB storage
-    control_usb_storage(volumes, 0);
+                if ((write(fd, vol->device, strlen(vol->device)) < 0) &&
+                    (!vol->device2 || (write(fd, vol->device, strlen(vol->device2)) < 0))) {
+                    LOGE("Unable to write to ums lunfile (%s)", strerror(errno));
+                    close(fd);
+                    return -1;
+                }
+                static char* headers[] = {  "USB Mass Storage device",
+                                            "Leaving this menu unmount",
+                                            "your internal SD card from",
+                                            "your PC.",
+                                            "",
+                                            NULL
+                };
+
+                static char* list[] = { "Unmount", NULL };
+
+                for (;;)
+                {
+                    int chosen_item = get_menu_selection(headers, list, 0, 0);
+                    if (chosen_item == GO_BACK || chosen_item == 0)
+                        break;
+                }
+
+                if ((fd = open(BOARD_UMS_LUNFILE, O_WRONLY)) < 0) {
+                    LOGE("Unable to open ums lunfile (%s)", strerror(errno));
+                    return -1;
+                }
+
+                char ch = 0;
+                if (write(fd, &ch, 1) < 0) {
+                    LOGE("Unable to write to ums lunfile (%s)", strerror(errno));
+                    close(fd);
+                    return -1;
+                }
+                break;
+            }
+#ifndef HAVE_NOT_EXTERNAL_SDCARD
+            case 1:
+            {
+                int fd;
+                Volume *vol = volume_for_path("/external_sd");
+                if ((fd = open(BOARD_UMS_LUNFILE_INT, O_WRONLY)) < 0) {
+                    LOGE("Unable to open ums lunfile (%s)", strerror(errno));
+                    return -1;
+                }
+
+                if ((write(fd, vol->device, strlen(vol->device)) < 0) &&
+                    (!vol->device2 || (write(fd, vol->device, strlen(vol->device2)) < 0))) {
+                    LOGE("Unable to write to ums lunfile (%s)", strerror(errno));
+                    close(fd);
+                    return -1;
+                }
+                static char* headers[] = {  "USB Mass Storage device",
+                                            "Leaving this menu unmount",
+                                            "your external SD card from",
+                                            "your PC.",
+                                            "",
+                                            NULL
+                };
+
+                static char* list[] = { "Unmount", NULL };
+
+                for (;;)
+                {
+                    int chosen_item = get_menu_selection(headers, list, 0, 0);
+                    if (chosen_item == GO_BACK || chosen_item == 0)
+                        break;
+                }
+
+                if ((fd = open(BOARD_UMS_LUNFILE_INT, O_WRONLY)) < 0) {
+                    LOGE("Unable to open ums lunfile (%s)", strerror(errno));
+                    return -1;
+                }
+
+                char ch = 0;
+                if (write(fd, &ch, 1) < 0) {
+                    LOGE("Unable to write to ums lunfile (%s)", strerror(errno));
+                    close(fd);
+                    return -1;
+                }
+                break;
+            }
+#endif
+        }
+    }
 }
 
 int confirm_selection(const char* title, const char* confirm)
