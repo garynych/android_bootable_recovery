@@ -1741,3 +1741,83 @@ int verify_root_and_recovery() {
     ensure_path_unmounted("/system");
     return ret;
 }
+
+int get_battery_level(void) {
+	char buf[4];
+	int fd, level, how_len=0;
+	ssize_t nbytes;
+
+	fd = open(BATTERY_LEVEL_FILE, O_RDONLY);
+	if (fd < 0)
+		return 0;
+
+	nbytes = read(fd, buf, sizeof(buf) - 1);
+	close(fd);
+	if (nbytes < 0)
+		return 0;
+	buf[nbytes] = '\0';
+
+	switch (nbytes) {
+		case 1:
+			how_len = 1;
+			break;
+		case 2:
+			how_len = 2;
+			break;
+		case 3:
+			how_len = 3;
+			break;
+		default:
+			return 0;
+	}
+
+	char *str;
+	str = strndup(buf, how_len);
+	level = atoi(str);
+
+	return level;
+}
+
+int battery_charging_usb(void) {
+	char buf[2];
+	int fd, charging;
+	ssize_t nbytes;
+
+	fd = open(BATTERY_STATUS_CHARGING_FILE_USB, O_RDONLY);
+	if (fd < 0)
+		return 0;
+
+	nbytes = read(fd, buf, sizeof(buf) - 1);
+	close(fd);
+	if (nbytes < 0)
+		return 0;
+	buf[nbytes] = '\0';
+
+	char *str;
+	str = strndup(buf, 1);
+	charging = atoi(str);
+
+	return charging;
+}
+
+int battery_charging_ac(void) {
+	char buf[2];
+	int fd, charging;
+	ssize_t nbytes;
+
+	fd = open(BATTERY_STATUS_CHARGING_FILE_AC, O_RDONLY);
+	if (fd < 0)
+		return 0;
+
+	nbytes = read(fd, buf, sizeof(buf) - 1);
+	close(fd);
+	if (nbytes < 0)
+		return 0;
+	buf[nbytes] = '\0';
+
+	char *str;
+	str = strndup(buf, 1);
+	charging = atoi(str);
+
+	return charging;
+}

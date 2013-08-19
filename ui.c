@@ -562,6 +562,79 @@ static void *input_thread(void *cookie)
     return NULL;
 }
 
+extern int get_battery_level(void);
+extern int battery_charging_usb(void);
+extern int battery_charging_ac(void);
+
+void update_leds(void) {
+	if (!ui_has_initialized)
+		return;
+
+	int level = get_battery_level();
+
+	if (level == 0)
+		level = 1;
+
+	int charging_usb = battery_charging_usb();
+	int charging_ac = battery_charging_ac();
+
+	static char cme[3] = "255";
+	static char cme_thin[3] = "122";
+	static char cmd[1] = "0";
+
+	if (charging_usb || charging_ac) {
+		if (level <= 96) {
+			FILE * amber = fopen(RED_LED_FILE, "wb");
+			FILE * green = fopen(GREEN_LED_FILE, "wb");
+			if (amber != NULL && green != NULL) {
+				fwrite(cme, 1, sizeof(cme), amber);
+				fclose(amber);
+				fwrite(cmd, 1, sizeof(cmd), green);
+				fclose(green);
+			} else
+				return;
+		} else if (level > 96 && level != 100) {
+			FILE * amber = fopen(RED_LED_FILE, "wb");
+			FILE * green = fopen(GREEN_LED_FILE, "wb");
+			if (amber != NULL && green != NULL) {
+				fwrite(cme_thin, 1, sizeof(cme_thin), amber);
+				fclose(amber);
+				fwrite(cme_thin, 1, sizeof(cme_thin), green);
+				fclose(green);
+			} else
+				return;
+		} else  {
+			FILE * amber = fopen(RED_LED_FILE, "wb");
+			FILE * green = fopen(GREEN_LED_FILE, "wb");
+			if (amber != NULL && green != NULL) {
+				fwrite(cmd, 1, sizeof(cmd), amber);
+				fclose(amber);
+				fwrite(cme, 1, sizeof(cme), green);
+				fclose(green);
+			} else
+				return;
+		}
+	} else {
+		FILE * amber = fopen(RED_LED_FILE, "wb");
+		FILE * green = fopen(GREEN_LED_FILE, "wb");
+		if (amber != NULL && green != NULL) {
+			fwrite(cmd, 1, sizeof(cmd), amber);
+			fclose(amber);
+			fwrite(cmd, 1, sizeof(cmd), green);
+			fclose(green);
+		} else
+			return;
+	}
+}
+
+static void *leds_thread(void *cookie) {
+	for (;;) {
+		usleep(2000000);
+		update_leds();
+	}
+	return NULL;
+}
+
 void ui_init(void)
 {
     ui_has_initialized = 1;
@@ -651,6 +724,7 @@ void ui_init(void)
     pthread_t t;
     pthread_create(&t, NULL, progress_thread, NULL);
     pthread_create(&t, NULL, input_thread, NULL);
+    pthread_create(&t, NULL, leds_thread, NULL);
 
     __system("/sbin/cat /sys/devices/platform/ab8500-i2c.0/ab8500-usb.0/boot_time_device > /sys/devices/platform/ab8500-i2c.0/ab8500-usb.0/boot_time_device");
     __system("/sbin/killall -9 adbd");
