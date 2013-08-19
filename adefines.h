@@ -1,6 +1,7 @@
 #ifndef ADEFINES_H
 #define ADEFINES_H
 
+Uncoment only one of these 4 before compiling rcovery!
 #define XPERIA_GO
 //#define XPERIA_SOLA
 //#define XPERIA_P
