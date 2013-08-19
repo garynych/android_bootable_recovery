@@ -43,6 +43,8 @@
 
 #include "adb_install.h"
 
+#include "adefines.h"
+
 int signature_check_enabled = 1;
 int script_assert_enabled = 1;
 static const char *SDCARD_UPDATE_FILE = "/sdcard/update.zip";
@@ -572,8 +574,6 @@ int control_usb_storage(Volume **volumes, bool enable) {
 
     return res;  // -1 failure, 0 success
 }
-
-#define BOARD_UMS_LUNFILE_INT	"/sys/devices/virtual/android_usb/android0/f_mass_storage/lun/file"
 
 void show_mount_usb_storage_menu()
 {

@@ -34,10 +34,16 @@
 #include "minui/minui.h"
 #include "recovery_ui.h"
 
+#include "adefines.h"
+
 extern int __system(const char *command);
 
 #define MAX_COLS 96
+#ifdef XPERIA_GO
 #define MAX_ROWS 20
+#else
+#define MAX_ROWS 28
+#endif
 
 #define MENU_MAX_COLS 64
 #define MENU_MAX_ROWS 250
@@ -80,7 +86,11 @@ static const struct { gr_surface* surface; const char *name; } BITMAPS[] = {
     { &gBackgroundIcon[BACKGROUND_ICON_FIRMWARE_ERROR], "icon_firmware_error" },
     { &gProgressBarEmpty,               "progress_empty" },
     { &gProgressBarFill,                "progress_fill" },
+#ifdef XPERIA_SOLA
+    { &gBackground,                "stitch_sola" },
+#else
     { &gBackground,                "stitch" },
+#endif
     { NULL,                             NULL },
 };
 
@@ -653,7 +663,15 @@ void ui_init(void)
     __system("/sbin/setprop sys.usb.config mass_storage,adb");
     __system("/sbin/setprop persist.sys.usb.config mass_storage,adb");
     __system("/sbin/start adbd");
-    //__system("/sbin/setprop ro.build.product lotus");
+#if (defined XPERIA_GO)
+    __system("/sbin/setprop ro.build.product lotus");
+#endif
+#if (defined XPERIA_SOLA)
+    __system("/sbin/setprop ro.build.product pepper");
+#endif
+#if (defined XPERIA_U)
+    __system("/sbin/setprop ro.build.product kumquat");
+#endif
 }
 
 char *ui_copy_image(int icon, int *width, int *height, int *bpp) {
