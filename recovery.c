@@ -682,7 +682,6 @@ static void
 prompt_and_wait() {
     char** headers = prepend_title((const char**)MENU_HEADERS);
 
-    extern int bootmenu_cnt;
     extern char kernel[10][350];
     extern char ramdisk[10][350];
     extern char cmdline[10][350];
@@ -715,9 +714,9 @@ prompt_and_wait() {
         } else if (chosen_item == 1) {
                 ui_print("Shutting down...\n");
                 reboot_main_system(ANDROID_RB_POWEROFF, 0, 0);
-        } else if (chosen_item > 1 && chosen_item <= (bootmenu_cnt + 1)) {
+        } else if (chosen_item > 1 && k_a_t) {
 			sprintf(popen_f, "/sbin/kexec --load-hardboot %s --initrd=%s --mem-min=0x2000000 --command-line='%s' ; exit $?",
-					 kernel[bootmenu_cnt - 2], ramdisk[bootmenu_cnt - 2], cmdline[bootmenu_cnt - 2]);
+					 kernel[chosen_item - 2], ramdisk[chosen_item - 2], cmdline[chosen_item - 2]);
 			ret = popen_wait_done(popen_f);
 			if (ret == 0) {
 				ui_print("kexecing...\n");

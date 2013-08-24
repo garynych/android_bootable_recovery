@@ -36,8 +36,6 @@ char kernel[10][350];
 char ramdisk[10][350];
 char cmdline[10][350];
 
-int bootmenu_cnt = 0;
-
 void set_multiboot_menu(void) {
 
 	char section[20];
@@ -55,8 +53,6 @@ void set_multiboot_menu(void) {
 
 	for (s = 0; ini_getsection(s, section, sizearray(section), inifile) > 0 && s <= 10; s++) {
 		//ui_print("    [%s]\n", section);
-
-		bootmenu_cnt += 1;
 
 		for (k = 0; ini_getkey(section, k, key, sizearray(key), inifile) > 0; k++) {
 			//ui_print("\t%s=", key);
