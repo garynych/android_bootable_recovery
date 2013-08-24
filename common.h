@@ -65,6 +65,17 @@ enum {
   BACKGROUND_ICON_CID,
   BACKGROUND_ICON_FIRMWARE_INSTALLING,
   BACKGROUND_ICON_FIRMWARE_ERROR,
+  B1,
+  B2,
+  B3,
+  B4,
+  B5,
+  B6,
+  B7,
+  B8,
+  B9,
+  B10,
+  BM,
   NUM_BACKGROUND_ICONS
 };
 void ui_set_background(int icon);

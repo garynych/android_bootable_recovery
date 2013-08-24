@@ -657,11 +657,38 @@ static void headless_wait() {
   }
 }
 
+int popen_wait_done(char *what) {
+    char tmp[PATH_MAX];
+
+    sprintf(tmp, "%s", what);
+
+    FILE *fp = __popen(tmp, "r");
+    if (fp == NULL) {
+        ui_print("Unable to execute.\n");
+        return -1;
+    }
+
+    while (fgets(tmp, PATH_MAX, fp) != NULL) {
+        tmp[PATH_MAX - 1] = '\0';
+	 ui_print("%s", tmp);
+    }
+
+    return __pclose(fp);
+}
+
 int ui_menu_level = 1;
 int ui_root_menu = 0;
 static void
 prompt_and_wait() {
     char** headers = prepend_title((const char**)MENU_HEADERS);
+
+    extern int bootmenu_cnt;
+    extern char kernel[10][350];
+    extern char ramdisk[10][350];
+    extern char cmdline[10][350];
+    extern short k_a_t;
+    char popen_f[500];
+    int ret;
 
     for (;;) {
         finish_recovery(NULL);
@@ -682,42 +709,36 @@ prompt_and_wait() {
         chosen_item = device_perform_action(chosen_item);
 
         int status;
-        switch (chosen_item) {
-            case ITEM_REBOOT:
+        if (chosen_item == 0) {
                 poweroff = 0;
                 return;
-
-            case ITEM_WIPE_DATA:
-                wipe_data(ui_text_visible());
-                if (!ui_text_visible()) return;
-                break;
-
-            case ITEM_WIPE_CACHE:
-                if (confirm_selection("Confirm wipe?", "Yes - Wipe Cache"))
-                {
-                    ui_print("\n-- Wiping cache...\n");
-                    erase_volume("/cache");
-                    ui_print("Cache wipe complete.\n");
-                    if (!ui_text_visible()) return;
-                }
-                break;
-
-            case ITEM_APPLY_ZIP:
-                show_install_update_menu();
-                break;
-
-            case ITEM_NANDROID:
-                show_nandroid_menu();
-                break;
-
-            case ITEM_PARTITION:
-                show_partition_menu();
-                break;
-
-            case ITEM_ADVANCED:
-                show_advanced_menu();
-                break;
-        }
+        } else if (chosen_item == 1) {
+                ui_print("Shutting down...\n");
+                reboot_main_system(ANDROID_RB_POWEROFF, 0, 0);
+        } else if (chosen_item > 1 && chosen_item <= (bootmenu_cnt + 1)) {
+			sprintf(popen_f, "/sbin/kexec --load-hardboot %s --initrd=%s --mem-min=0x2000000 --command-line='%s' ; exit $?",
+					 kernel[bootmenu_cnt - 2], ramdisk[bootmenu_cnt - 2], cmdline[bootmenu_cnt - 2]);
+			ret = popen_wait_done(popen_f);
+			if (ret == 0) {
+				ui_print("kexecing...\n");
+				sleep(2);
+				ensure_path_unmounted("/sdcard");
+				ret = popen_wait_done("/sbin/kexec -e ; exit $?");
+			} else
+				ui_print("Something went wrong, please see log!\n");
+        } else if (!k_a_t) {
+			chosen_item = 2;
+			sprintf(popen_f, "/sbin/kexec --load-hardboot %s --initrd=%s --mem-min=0x2000000 --command-line='%s' ; exit $?",
+					 kernel[0], ramdisk[0], cmdline[0]);
+			ret = popen_wait_done(popen_f);
+			if (ret == 0) {
+				ui_print("kexecing...\n");
+				sleep(2);
+				ensure_path_unmounted("/sdcard");
+				ret = popen_wait_done("/sbin/kexec -e ; exit $?");
+			} else
+				ui_print("Something went wrong, please see log!\n");
+	 }
     }
 }
 
@@ -834,7 +855,6 @@ main(int argc, char **argv) {
 
     device_ui_init(&ui_parameters);
     ui_init();
-    ui_print(EXPAND(RECOVERY_VERSION)"\n");
     load_volume_table();
     process_volumes();
     LOGI("Processing arguments.\n");
@@ -881,7 +901,6 @@ main(int argc, char **argv) {
 
     if (!sehandle) {
         fprintf(stderr, "Warning: No file_contexts\n");
-        ui_print("Warning:  No file_contexts\n");
     }
 
     LOGI("device_recovery_start()\n");

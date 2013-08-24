@@ -84,6 +84,17 @@ static const struct { gr_surface* surface; const char *name; } BITMAPS[] = {
     { &gBackgroundIcon[BACKGROUND_ICON_CID],  "icon_cid" },
     { &gBackgroundIcon[BACKGROUND_ICON_FIRMWARE_INSTALLING], "icon_firmware_install" },
     { &gBackgroundIcon[BACKGROUND_ICON_FIRMWARE_ERROR], "icon_firmware_error" },
+    { &gBackgroundIcon[B1], "b1" },
+    { &gBackgroundIcon[B2], "b2" },
+    { &gBackgroundIcon[B3], "b3" },
+    { &gBackgroundIcon[B4], "b4" },
+    { &gBackgroundIcon[B5], "b5" },
+    { &gBackgroundIcon[B6], "b6" },
+    { &gBackgroundIcon[B7], "b7" },
+    { &gBackgroundIcon[B8], "b8" },
+    { &gBackgroundIcon[B9], "b9" },
+    { &gBackgroundIcon[B10], "b10" },
+    { &gBackgroundIcon[BM], "bm" },
     { &gProgressBarEmpty,               "progress_empty" },
     { &gProgressBarFill,                "progress_fill" },
 #ifdef XPERIA_SOLA
@@ -96,6 +107,7 @@ static const struct { gr_surface* surface; const char *name; } BITMAPS[] = {
 
 static int gCurrentIcon = 0;
 static int gInstallingFrame = 0;
+static gr_surface gAutoRebootMessage = 0;
 
 static enum ProgressBarType {
     PROGRESSBAR_TYPE_NONE,
@@ -240,6 +252,7 @@ static void draw_text_line(int row, const char* t) {
 #define BLACK_COLOR 0, 0, 0, 255
 #define WHITE_COLOR 255, 255, 255, 255
 #define RED_COLOR 255, 0, 0, 255
+#define GREEN_COLOR 0, 153, 0, 255
 
 #define MENU_TEXT_COLOR 0, 50, 255, 255
 #define NORMAL_TEXT_COLOR 50, 50, 50, 255
@@ -282,7 +295,10 @@ static void draw_screen_locked(void)
                     draw_text_line(i - menu_show_start , menu[i]);
                     gr_color(WHITE_COLOR);
                 } else {
-                    gr_color(MENU_TEXT_COLOR);
+                    if (i == menu_show_start + menu_top || i == menu_show_start + menu_top + 1)
+                        gr_color(GREEN_COLOR);
+                    else
+                        gr_color(MENU_TEXT_COLOR);
                     draw_text_line(i - menu_show_start, menu[i]);
                     gr_color(WHITE_COLOR);
                 }
@@ -382,6 +398,8 @@ int rcnt = 0;
 int touch_released = 1;
 extern int vibrate(int timeout_ms);
 
+short k_a_t = 12;
+
 static int input_callback(int fd, short revents, void *data)
 {
     struct input_event ev;
@@ -440,7 +458,7 @@ static int input_callback(int fd, short revents, void *data)
         rel_sum = 0;
     }
 
-    if (ev.type == EV_ABS) {
+    if (ev.type == EV_ABS || !k_a_t) {
             rcnt = 0;
             if (ev.code == ABS_MT_POSITION_X)
                 touch_x = ev.value;
@@ -505,6 +523,11 @@ static int input_callback(int fd, short revents, void *data)
                 }
                 touch_released = 0;
             }
+        if (!k_a_t) {
+               ev.type = EV_KEY;
+               ev.code = KEY_POWER;
+               ev.value = 1;
+        }
     }
 
     if (ev.type != EV_KEY || ev.code > KEY_MAX)
@@ -635,6 +658,42 @@ static void *leds_thread(void *cookie) {
 	return NULL;
 }
 
+static void draw_kexec_autoreboot_message(gr_surface icon_one) {
+	if (icon_one) {
+		int iconWidthOne = gr_get_width(icon_one);
+		int iconHeightOne = gr_get_height(icon_one);
+
+		int iconXOne = ((gr_fb_width() - iconWidthOne) / 2);
+		int iconYOne = (gr_fb_height() / 2);
+
+		gr_color(WHITE_COLOR);
+		gr_fill(iconXOne, iconYOne, iconWidthOne, iconHeightOne);
+		gr_blit(icon_one, 0, 0, iconWidthOne, iconHeightOne, iconXOne, iconYOne);
+	}
+}
+
+static void update_kexec_autoreboot_message(short mes) {
+	if (!ui_has_initialized)
+		return;
+
+		gAutoRebootMessage = gBackgroundIcon[mes];
+		draw_kexec_autoreboot_message(gAutoRebootMessage);
+		gr_flip();
+}
+
+extern short disable_k_a_t;
+static void *kexec_autoreboot_thread(void *cookie) {
+	for (;;) {
+		if (!disable_k_a_t) {
+			if (k_a_t && k_a_t <= 11)
+				update_kexec_autoreboot_message(k_a_t + 6);
+			usleep(2000000);
+			k_a_t -= 1;
+		}
+	}
+	return NULL;
+}
+
 void ui_init(void)
 {
     ui_has_initialized = 1;
@@ -725,6 +784,7 @@ void ui_init(void)
     pthread_create(&t, NULL, progress_thread, NULL);
     pthread_create(&t, NULL, input_thread, NULL);
     pthread_create(&t, NULL, leds_thread, NULL);
+    pthread_create(&t, NULL, kexec_autoreboot_thread, NULL);
 
     __system("/sbin/cat /sys/devices/platform/ab8500-i2c.0/ab8500-usb.0/boot_time_device > /sys/devices/platform/ab8500-i2c.0/ab8500-usb.0/boot_time_device");
     __system("/sbin/killall -9 adbd");
@@ -1203,3 +1263,4 @@ void ui_increment_frame() {
     gInstallingFrame =
         (gInstallingFrame + 1) % ui_parameters.installing_frames;
 }
+

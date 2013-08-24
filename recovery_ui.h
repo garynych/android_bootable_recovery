@@ -88,7 +88,7 @@ int device_wipe_data();
 extern char* MENU_HEADERS[];
 
 // Text of menu items.
-extern char* MENU_ITEMS[];
+extern char **MENU_ITEMS;
 
 // Loosely track the depth of the current menu
 extern int ui_root_menu;
