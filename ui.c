@@ -86,8 +86,8 @@ static const struct { gr_surface* surface; const char *name; } BITMAPS[] = {
     { &gBackgroundIcon[BACKGROUND_ICON_FIRMWARE_ERROR], "icon_firmware_error" },
     { &gProgressBarEmpty,               "progress_empty" },
     { &gProgressBarFill,                "progress_fill" },
-#ifdef XPERIA_SOLA
-    { &gBackground,                "stitch_sola" },
+#ifdef XPERIA_GO
+    { &gBackground,                "stitch_go" },
 #else
     { &gBackground,                "stitch" },
 #endif
